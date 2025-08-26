@@ -1,11 +1,11 @@
-import time   # 시간 지연(sleep)을 위해 사용
-import json   # JSON 형식 출력 지원
+import time   # 주기적 대기(sleep)을 위해 사용
+import json   # JSON 형식 출력
 import random # 무작위 데이터 생성
 
 class DummySensor:
     """
     DummySensor 클래스
-    - 임의의 센서 데이터를 생성해서 반환하는 시뮬레이션용 클래스
+    - 무작위 환경 데이터를 생성하여 반환하는 센서 시뮬레이터
     """
     def __init__(self):
         self.env_values = {
@@ -30,7 +30,9 @@ class DummySensor:
 class MissionComputer:
     """
     MissionComputer 클래스
-    - DummySensor 데이터를 주기적으로 가져와 출력하는 역할
+    - DummySensor 데이터를 주기적으로 가져와 출력한다.
+    - 5초마다 현재값 출력
+    - 5분마다(=60회) 평균값 출력
     """
     def __init__(self):
         self.env_values = {
@@ -42,20 +44,48 @@ class MissionComputer:
             'mars_base_internal_oxygen': None,
         }
         self.ds = DummySensor()
+
+        # --- 보너스 과제용 데이터 저장소 ---
+        # 최근 60번(=5분) 동안의 데이터를 저장해 평균 계산
+        self.acc_data = { key: [] for key in self.env_values.keys() }
+
     def get_sensor_data(self):
-        """ 센서값을 5초마다 출력, CTRL+C 입력 시 종료 """
+        """
+        센서 데이터를 무한 루프로 반복 출력
+        - 5초마다 현재 값 출력
+        - 5분마다 평균값 출력
+        - CTRL+C 시 종료
+        """
         try:
+            count = 0  # 몇 번(=몇 초 주기) 실행했는지 카운트
             while True:
-                # 센서 갱신
+                # 센서 데이터 갱신
                 self.ds.set_env()
-                # 센서 측정 데이터 가져오기
                 sensor_data = self.ds.get_env()
-                # MissionComputer의 값으로 복사
+
+                # MissionComputer의 env_values 갱신
                 for key in self.env_values.keys():
                     self.env_values[key] = sensor_data[key]
-                # JSON 형식으로 예쁘게 출력
+                    # 보너스 평균 계산용으로 값 저장
+                    self.acc_data[key].append(sensor_data[key])
+
+                # 현재값 출력
                 print(json.dumps(self.env_values, indent=4, ensure_ascii=False))
-                # 5초간 대기
+
+                # 카운트 증가
+                count += 1
+
+                # 60번(=5분)마다 평균값 출력
+                if count % 60 == 0:
+                    avg_result = {
+                        k: round(sum(v)/len(v), 2) for k, v in self.acc_data.items()
+                    }
+                    print('[5분 평균값]')
+                    print(json.dumps(avg_result, indent=4, ensure_ascii=False))
+                    # 다 출력했으면 리스트 비워서 새로운 5분 간격 측정 준비
+                    self.acc_data = { key: [] for key in self.env_values.keys() }
+
+                # 5초 대기
                 time.sleep(5)
         except KeyboardInterrupt:
             print('System stoped....')
